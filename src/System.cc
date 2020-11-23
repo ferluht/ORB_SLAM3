@@ -195,6 +195,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mptLoopClosing = new thread(&ORB_SLAM3::LoopClosing::Run, mpLoopCloser);
 
     //Initialize the Viewer thread and launch
+    /* @sergevkim
     if(bUseViewer)
     {
         mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpTracker,strSettingsFile);
@@ -203,6 +204,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         mpLoopCloser->mpViewer = mpViewer;
         mpViewer->both = mpFrameDrawer->both;
     }
+    */
 
     //Set pointers between threads
     mpTracker->SetLocalMapper(mpLocalMapper);
@@ -398,6 +400,24 @@ cv::Mat System::TrackMonocular(const cv::Mat &im, const double &timestamp, const
 
     cv::Mat Tcw = mpTracker->GrabImageMonocular(im,timestamp,filename);
 
+    /*if(mpLocalMapper->mbNewInit)
+    {
+        // Save data
+        SaveDebugData(mpLocalMapper->mIdxInit);
+        mpLocalMapper->mbNewInit=false;
+        // Check if reset
+        {
+            unique_lock<mutex> lock(mMutexReset);
+            if(mpLocalMapper->mInitTime>10.0)
+            {
+                mpTracker->Reset();
+                mbReset = false;
+                mbResetActiveMap = false;
+                mpLocalMapper->mInitSect++;
+            }
+        }
+    }*/
+
     unique_lock<mutex> lock2(mMutexState);
     mTrackingState = mpTracker->mState;
     mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
@@ -471,8 +491,9 @@ void System::Shutdown()
         usleep(5000);
     }
 
-    if(mpViewer)
-        pangolin::BindToContext("ORB-SLAM2: Map Viewer");
+    // @sergevkim
+    //if(mpViewer)
+    //    pangolin::BindToContext("ORB-SLAM2: Map Viewer");
 }
 
 
