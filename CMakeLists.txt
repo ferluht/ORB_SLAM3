@@ -124,10 +124,17 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 -lboost_serialization
 -lcrypto
+-lrabbitmq
 )
 
 
 # Build examples
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGBD-AMQP)
+add_executable(rgbd_amqp
+Examples/RGBD-AMQP/rgbd_amqp.cc
+Examples/RGBD-AMQP/utils.c)
+target_link_libraries(rgbd_amqp ${PROJECT_NAME})
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGB-D)
 add_executable(rgbd_tum
