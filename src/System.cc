@@ -496,7 +496,53 @@ void System::Shutdown()
     //    pangolin::BindToContext("ORB-SLAM2: Map Viewer");
 }
 
+int System::GetLastPose(cv::Mat * twc, vector<float> * q)
+{
+    if (mpTracker->mlFrameTimes.size() < 3) return 0;
+    vector<KeyFrame*> vpKFs = mpAtlas->GetAllKeyFrames();
+    sort(vpKFs.begin(),vpKFs.end(),KeyFrame::lId);
 
+    // Transform all keyframes so that the first keyframe is at the origin.
+    // After a loop closure the first keyframe might not be at the origin.
+    cv::Mat Two = vpKFs[0]->GetPoseInverse();
+ 
+    // Frame pose is stored relative to its reference keyframe (which is optimized by BA and pose graph).
+    // We need to get first the keyframe pose and then concatenate the relative transformation.
+    // Frames not localized (tracking failure) are not saved.
+
+    // For each frame we have a reference keyframe (lRit), the timestamp (lT) and a flag
+    // which is true when tracking failed (lbL).
+    list<ORB_SLAM3::KeyFrame*>::iterator lRit = mpTracker->mlpReferences.end()--;
+    list<double>::iterator lT = mpTracker->mlFrameTimes.end()--;
+    list<bool>::iterator lbL = mpTracker->mlbLost.end()--;
+    list<cv::Mat>::iterator lit=mpTracker->mlRelativeFramePoses.end()--;
+    
+    if(*lbL)
+        return 0;
+
+    KeyFrame* pKF = *lRit;
+
+    cv::Mat Trw = cv::Mat::eye(4,4,CV_32F);
+
+    // If the reference keyframe was culled, traverse the spanning tree to get a suitable keyframe.
+    while(pKF->isBad())
+    {
+        Trw = Trw*pKF->mTcp;
+        pKF = pKF->GetParent();
+    }
+
+    Trw = Trw*pKF->GetPose()*Two;
+
+    cv::Mat Tcw = (*lit)*Trw;
+    cv::Mat Rwc = Tcw.rowRange(0,3).colRange(0,3).t();
+    *twc = -Rwc*Tcw.rowRange(0,3).col(3);
+
+    *q = Converter::toQuaternion(Rwc);
+
+    return 1;
+    //outstring << setprecision(6) << *lT << " " <<  setprecision(9) << twc.at<float>(0) << " " << twc.at<float>(1) << " " << twc.at<float>(2) << " " << q[0] << " " << q[1] << " " << q[2] << " " << q[3] << endl;
+    // cout << endl << "trajectory saved!" << endl;
+}
 
 void System::SaveTrajectoryTUM(const string &filename)
 {

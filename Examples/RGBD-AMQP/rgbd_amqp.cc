@@ -90,17 +90,17 @@ int main(int argc, char const *const *argv) {
       break;
     }
 
-    printf("Delivery %u, exchange %.*s routingkey %.*s\n",
-           (unsigned)envelope.delivery_tag, (int)envelope.exchange.len,
-           (char *)envelope.exchange.bytes, (int)envelope.routing_key.len,
-           (char *)envelope.routing_key.bytes);
+    // printf("Delivery %u, exchange %.*s routingkey %.*s\n",
+    //        (unsigned)envelope.delivery_tag, (int)envelope.exchange.len,
+    //        (char *)envelope.exchange.bytes, (int)envelope.routing_key.len,
+    //        (char *)envelope.routing_key.bytes);
 
-    if (envelope.message.properties._flags & AMQP_BASIC_CONTENT_TYPE_FLAG) {
-      printf("Content-type: %.*s\n",
-             (int)envelope.message.properties.content_type.len,
-             (char *)envelope.message.properties.content_type.bytes);
-    }
-    printf("----\n");
+    // if (envelope.message.properties._flags & AMQP_BASIC_CONTENT_TYPE_FLAG) {
+    //   printf("Content-type: %.*s\n",
+    //          (int)envelope.message.properties.content_type.len,
+    //          (char *)envelope.message.properties.content_type.bytes);
+    // }
+    // printf("----\n");
 
     {
       amqp_basic_properties_t props;
@@ -113,18 +113,38 @@ int main(int argc, char const *const *argv) {
                    "Publishing");
     }
 
-    amqp_dump(envelope.message.body.bytes, envelope.message.body.len);
+    // amqp_dump(envelope.message.body.bytes, envelope.message.body.len);
 
     unsigned char *buffer = (unsigned char *)envelope.message.body.bytes;
     int bufferLength = envelope.message.body.len;
 
-    imRGB = cv::imdecode(cv::Mat(1, bufferLength, CV_8UC1, buffer), CV_LOAD_IMAGE_UNCHANGED);
+    const char * ccbuf = (const char *)envelope.message.body.bytes;
 
-    imD = cv::imdecode(cv::Mat(1, bufferLength, CV_8UC1, buffer), CV_LOAD_IMAGE_UNCHANGED);
+    char timestamp_buffer[20];
+    strncpy(timestamp_buffer, &ccbuf[0], 20);
+    double timestamp = ((double)stoi(timestamp_buffer)) / 1000;
 
-    double tframe = 0;
+    char color_len_buffer[10];
+    strncpy(color_len_buffer, &ccbuf[20], 10);
+    int color_len = stoi(color_len_buffer); 
 
-    SLAM.TrackRGBD(imRGB,imD,tframe);
+    char depth_len_buffer[10];
+    strncpy(depth_len_buffer, &ccbuf[30], 10);
+    int depth_len = stoi(depth_len_buffer);    
+
+    imRGB = cv::imdecode(cv::Mat(1, color_len, CV_8UC3, &buffer[40]), CV_LOAD_IMAGE_UNCHANGED);
+    imD = cv::imdecode(cv::Mat(1, depth_len, CV_16UC1, &buffer[40 + color_len]), CV_LOAD_IMAGE_UNCHANGED);
+
+    printf("Received pair %dx%d timestamp %.3f\n", imD.rows, imD.cols, timestamp);
+
+    SLAM.TrackRGBD(imRGB,imD,timestamp);
+
+    cv::Mat twc;
+    vector<float> q;
+
+    int ret = SLAM.GetLastPose(&twc, &q);    
+
+    cout << setprecision(9) << twc.at<float>(0) << " " << twc.at<float>(1) << " " << twc.at<float>(2) << " " << q[0] << " " << q[1] << " " << q[2] << " " << q[3] << endl;
 
     amqp_destroy_envelope(&envelope);
   }
